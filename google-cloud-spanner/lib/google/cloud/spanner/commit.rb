@@ -278,6 +278,67 @@ module Google
             )
           ]
           keys
+        ##
+        # Sends a message to a queue.
+        #
+        # All changes are accumulated in memory until the block passed to
+        # {Client#commit} completes.
+        #
+        # @param [String] queue The name of the queue.
+        # @param [Object, Array<Object>] keys A single, or list of keys for the message.
+        # @param [Object] payload The message payload.
+        # @param [Time] deliver_at An optional scheduled delivery time.
+        #
+        def enqueue queue, keys = [], payload, deliver_at: nil
+          # Note: Currently relying on pre-GA protos (V1::Mutation::Send)
+          # which may not exist statically yet in this branch.
+          # We map the arguments to the upcoming protobuf structure.
+          
+          # Convert keys to list values
+          keys = [keys] unless keys.is_a? Array
+          key_list = keys.map do |k|
+            Convert.object_to_grpc_value(k)
+          end
+          values = Google::Protobuf::ListValue.new(values: key_list)
+          
+          # Payload should be correctly wrapped based on the schema, assuming BYTES
+          payload_value = Convert.object_to_grpc_value(payload)
+          
+          send_opts = {
+            queue: queue,
+            values: values,
+            payload: payload_value
+          }
+          send_opts[:deliver_at] = Convert.time_to_timestamp(deliver_at) if deliver_at
+          
+          @mutations += [
+            V1::Mutation.new(
+              send: V1::Mutation::Send.new(send_opts)
+            )
+          ]
+        end
+
+        ##
+        # Acknowledges a message in a queue.
+        #
+        # All changes are accumulated in memory until the block passed to
+        # {Client#commit} completes.
+        #
+        # @param [String] queue The name of the queue.
+        # @param [Object, Array<Object>] keys A single, or list of keys to match.
+        # @param [Boolean] ignore_not_found If true, does not fail if message does not exist.
+        #
+        def ack queue, keys = [], ignore_not_found: false
+          @mutations += [
+            V1::Mutation.new(
+              ack: V1::Mutation::Ack.new(
+                queue: queue,
+                key_set: key_set(keys),
+                ignore_not_found: ignore_not_found
+              )
+            )
+          ]
+          keys
         end
 
         # Return the current mutations added to this `Spanner::Commit` object.
