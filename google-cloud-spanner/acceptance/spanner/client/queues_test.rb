@@ -20,11 +20,6 @@ describe "Spanner Client Queues", :crud, :spanner do
   end
 
   it "enqueues, reads back, and acknowledges queue messages transactionally" do
-    # In pre-GA and cloud-devel environments where CREATE QUEUE DDL or
-    # Queue TVFs are not yet enabled on the backend, queue mutations
-    # may raise NotFoundError, InvalidArgumentError, or UnimplementedError.
-    # We validate happy-path execution when enabled, and resiliency/recovery
-    # when the backend feature flag is disabled, matching Java's ITQueueTest pattern.
     db[:gsql].commit do |c|
       c.enqueue "TestQueue", [1], "payload1"
       c.enqueue "TestQueue", [2], "payload2"
@@ -64,9 +59,6 @@ describe "Spanner Client Queues", :crud, :spanner do
     _(results3_after.rows.count).must_equal 1
     payload3_after = results3_after.rows.first[:Payload]
     _(payload3_after.respond_to?(:read) ? payload3_after.read : payload3_after.to_s).must_equal "payload3"
-  rescue Google::Cloud::NotFoundError, Google::Cloud::InvalidArgumentError, Google::Cloud::UnimplementedError => e
-    # Verifies resiliency and clean failure recovery when queue schema is not present.
-    _(e.message).must_match(/Queue|Table not found|not found|TestQueue|unimplemented|invalid/i)
   end
 
   it "acknowledges missing messages with ignore_not_found option" do
@@ -81,7 +73,5 @@ describe "Spanner Client Queues", :crud, :spanner do
       end
     end).must_raise Google::Cloud::NotFoundError, Google::Cloud::InvalidArgumentError, Google::Cloud::UnimplementedError
     _(err.message).must_match(/Queue|Table not found|not found|TestQueue|unimplemented|invalid/i)
-  rescue Google::Cloud::NotFoundError, Google::Cloud::InvalidArgumentError, Google::Cloud::UnimplementedError => e
-    _(e.message).must_match(/Queue|Table not found|not found|TestQueue|unimplemented|invalid/i)
   end
 end
