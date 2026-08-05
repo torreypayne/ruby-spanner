@@ -19,19 +19,69 @@ describe "Spanner Client Queues", :crud, :spanner do
     { gsql: spanner_client }
   end
 
-  it "enqueues and acknowledges queue messages transactionally" do
+  it "enqueues, reads back, and acknowledges queue messages transactionally" do
     # In pre-GA and cloud-devel environments where CREATE QUEUE DDL or
     # Queue TVFs are not yet enabled on the backend, queue mutations
     # may raise NotFoundError, InvalidArgumentError, or UnimplementedError.
     # We validate happy-path execution when enabled, and resiliency/recovery
-    # when the backend feature flag is disabled.
+    # when the backend feature flag is disabled, matching Java's ITQueueTest pattern.
     db[:gsql].commit do |c|
-      now = Time.now
-      c.enqueue "TestQueue", [1], "test_payload", deliver_at: now
-      c.ack "TestQueue", [1], ignore_not_found: true
+      c.enqueue "TestQueue", [1], "payload1"
+      c.enqueue "TestQueue", [2], "payload2"
+      c.enqueue "TestQueue", [3], "payload3", deliver_at: Time.now
     end
+
+    # Read back from the queue table to verify messages were enqueued
+    results1 = db[:gsql].read "TestQueue", [:Payload], keys: [1]
+    _(results1.rows.count).must_equal 1
+    payload1 = results1.rows.first[:Payload]
+    _(payload1.respond_to?(:read) ? payload1.read : payload1.to_s).must_equal "payload1"
+
+    results2 = db[:gsql].read "TestQueue", [:Payload], keys: [2]
+    _(results2.rows.count).must_equal 1
+    payload2 = results2.rows.first[:Payload]
+    _(payload2.respond_to?(:read) ? payload2.read : payload2.to_s).must_equal "payload2"
+
+    results3 = db[:gsql].read "TestQueue", [:Payload], keys: [3]
+    _(results3.rows.count).must_equal 1
+    payload3 = results3.rows.first[:Payload]
+    _(payload3.respond_to?(:read) ? payload3.read : payload3.to_s).must_equal "payload3"
+
+    # Acknowledge the first two messages
+    db[:gsql].commit do |c|
+      c.ack "TestQueue", [1]
+      c.ack "TestQueue", [2]
+    end
+
+    # Verify the first two messages are removed from the queue and message 3 remains
+    results1_after = db[:gsql].read "TestQueue", [:Payload], keys: [1]
+    _(results1_after.rows.count).must_equal 0
+
+    results2_after = db[:gsql].read "TestQueue", [:Payload], keys: [2]
+    _(results2_after.rows.count).must_equal 0
+
+    results3_after = db[:gsql].read "TestQueue", [:Payload], keys: [3]
+    _(results3_after.rows.count).must_equal 1
+    payload3_after = results3_after.rows.first[:Payload]
+    _(payload3_after.respond_to?(:read) ? payload3_after.read : payload3_after.to_s).must_equal "payload3"
   rescue Google::Cloud::NotFoundError, Google::Cloud::InvalidArgumentError, Google::Cloud::UnimplementedError => e
     # Verifies resiliency and clean failure recovery when queue schema is not present.
+    _(e.message).must_match(/Queue|Table not found|not found|TestQueue|unimplemented|invalid/i)
+  end
+
+  it "acknowledges missing messages with ignore_not_found option" do
+    db[:gsql].commit do |c|
+      c.ack "TestQueue", [9999], ignore_not_found: true
+    end
+
+    # Acknowledging without ignore_not_found should raise an error when queue is present
+    err = _(proc do
+      db[:gsql].commit do |c|
+        c.ack "TestQueue", [9999], ignore_not_found: false
+      end
+    end).must_raise Google::Cloud::NotFoundError, Google::Cloud::InvalidArgumentError, Google::Cloud::UnimplementedError
+    _(err.message).must_match(/Queue|Table not found|not found|TestQueue|unimplemented|invalid/i)
+  rescue Google::Cloud::NotFoundError, Google::Cloud::InvalidArgumentError, Google::Cloud::UnimplementedError => e
     _(e.message).must_match(/Queue|Table not found|not found|TestQueue|unimplemented|invalid/i)
   end
 end
