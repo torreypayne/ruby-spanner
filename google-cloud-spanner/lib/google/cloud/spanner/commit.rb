@@ -296,19 +296,12 @@ module Google
           # which may not exist statically yet in this branch.
           # We map the arguments to the upcoming protobuf structure.
 
-          # Convert keys to list values
-          keys = [keys] unless keys.is_a? Array
-          key_list = keys.map do |k|
-            Convert.object_to_grpc_value k
-          end
-          values = Google::Protobuf::ListValue.new values: key_list
-
           # Payload should be correctly wrapped based on the schema, assuming BYTES
           payload_value = Convert.object_to_grpc_value payload
 
           send_opts = {
             queue: queue,
-            key: values,
+            key: key_list_value(keys),
             payload: payload_value
           }
           send_opts[:deliver_time] = Convert.time_to_timestamp(deliver_at) if deliver_at
@@ -331,17 +324,11 @@ module Google
         # @param [Boolean] ignore_not_found If true, does not fail if message does not exist.
         #
         def ack queue, keys, ignore_not_found: false
-          keys = [keys] unless keys.is_a? Array
-          key_list = keys.map do |k|
-            Convert.object_to_grpc_value k
-          end
-          values = Google::Protobuf::ListValue.new values: key_list
-
           @mutations += [
             V1::Mutation.new(
               ack: V1::Mutation::Ack.new(
                 queue: queue,
-                key: values,
+                key: key_list_value(keys),
                 ignore_not_found: ignore_not_found
               )
             )
@@ -392,6 +379,21 @@ module Google
             )
           end
           rows
+        end
+
+        ##
+        # @private
+        # Generates a `ListValue` protobuf containing gRPC values for the given primary keys.
+        #
+        # @param [Object, Array<Object>] keys A single, or list of keys to convert.
+        # @return [Google::Protobuf::ListValue]
+        #
+        def key_list_value keys
+          keys = [keys] unless keys.is_a? Array
+          key_list = keys.map do |k|
+            Convert.object_to_grpc_value k
+          end
+          Google::Protobuf::ListValue.new values: key_list
         end
 
         def key_set keys
