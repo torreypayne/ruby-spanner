@@ -15,6 +15,10 @@
 require "spanner_helper"
 
 describe "Spanner Client Queues", :crud, :spanner do
+  before do
+    skip "Cloud Spanner Emulator does not yet support Queues (Send & Ack)" if ENV["SPANNER_EMULATOR_HOST"]
+  end
+
   let :db do
     { gsql: spanner_client }
   end
