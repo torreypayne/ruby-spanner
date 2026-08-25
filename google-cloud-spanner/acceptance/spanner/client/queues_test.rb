@@ -32,18 +32,21 @@ describe "Spanner Client Queues", :crud, :spanner do
 
     # Read back from the queue table to verify messages were enqueued
     results1 = db[:gsql].read "TestQueue", [:Payload], keys: [1]
-    _(results1.rows.count).must_equal 1
-    payload1 = results1.rows.first[:Payload]
+    rows1 = results1.rows.to_a
+    _(rows1.count).must_equal 1
+    payload1 = rows1.first[:Payload]
     _(payload1.respond_to?(:read) ? payload1.read : payload1.to_s).must_equal "payload1"
 
     results2 = db[:gsql].read "TestQueue", [:Payload], keys: [2]
-    _(results2.rows.count).must_equal 1
-    payload2 = results2.rows.first[:Payload]
+    rows2 = results2.rows.to_a
+    _(rows2.count).must_equal 1
+    payload2 = rows2.first[:Payload]
     _(payload2.respond_to?(:read) ? payload2.read : payload2.to_s).must_equal "payload2"
 
     results3 = db[:gsql].read "TestQueue", [:Payload], keys: [3]
-    _(results3.rows.count).must_equal 1
-    payload3 = results3.rows.first[:Payload]
+    rows3 = results3.rows.to_a
+    _(rows3.count).must_equal 1
+    payload3 = rows3.first[:Payload]
     _(payload3.respond_to?(:read) ? payload3.read : payload3.to_s).must_equal "payload3"
 
     # Acknowledge the first two messages
@@ -54,14 +57,15 @@ describe "Spanner Client Queues", :crud, :spanner do
 
     # Verify the first two messages are removed from the queue and message 3 remains
     results1_after = db[:gsql].read "TestQueue", [:Payload], keys: [1]
-    _(results1_after.rows.count).must_equal 0
+    _(results1_after.rows.to_a.count).must_equal 0
 
     results2_after = db[:gsql].read "TestQueue", [:Payload], keys: [2]
-    _(results2_after.rows.count).must_equal 0
+    _(results2_after.rows.to_a.count).must_equal 0
 
     results3_after = db[:gsql].read "TestQueue", [:Payload], keys: [3]
-    _(results3_after.rows.count).must_equal 1
-    payload3_after = results3_after.rows.first[:Payload]
+    rows3_after = results3_after.rows.to_a
+    _(rows3_after.count).must_equal 1
+    payload3_after = rows3_after.first[:Payload]
     _(payload3_after.respond_to?(:read) ? payload3_after.read : payload3_after.to_s).must_equal "payload3"
   end
 
