@@ -287,11 +287,11 @@ module Google
         # {Client#commit} completes.
         #
         # @param [String] queue The name of the queue.
-        # @param [Object, Array<Object>] keys A single, or list of keys for the message.
+        # @param [Object, Array<Object>] key A single key or array of composite key parts for the message.
         # @param [Object] payload The message payload.
         # @param [Time] deliver_time An optional scheduled delivery time.
         #
-        def enqueue queue, keys, payload, deliver_time: nil
+        def enqueue queue, key, payload, deliver_time: nil
           # NOTE: Currently relying on pre-GA protos (V1::Mutation::Send)
           # which may not exist statically yet in this branch.
           # We map the arguments to the upcoming protobuf structure.
@@ -301,7 +301,7 @@ module Google
 
           send_opts = {
             queue: queue,
-            key: key_list_value(keys),
+            key: key_list_value(key),
             payload: payload_value
           }
           send_opts[:deliver_time] = Convert.time_to_timestamp(deliver_time) if deliver_time
@@ -320,20 +320,20 @@ module Google
         # {Client#commit} completes.
         #
         # @param [String] queue The name of the queue.
-        # @param [Object, Array<Object>] keys A single, or list of keys to match.
+        # @param [Object, Array<Object>] key A single key or array of composite key parts to match.
         # @param [Boolean] ignore_not_found If true, does not fail if message does not exist.
         #
-        def ack queue, keys, ignore_not_found: false
+        def ack queue, key, ignore_not_found: false
           @mutations += [
             V1::Mutation.new(
               ack: V1::Mutation::Ack.new(
                 queue: queue,
-                key: key_list_value(keys),
+                key: key_list_value(key),
                 ignore_not_found: ignore_not_found
               )
             )
           ]
-          keys
+          key
         end
 
         # Return the current mutations added to this `Spanner::Commit` object.
@@ -383,14 +383,14 @@ module Google
 
         ##
         # @private
-        # Generates a `ListValue` protobuf containing gRPC values for the given primary keys.
+        # Generates a `ListValue` protobuf containing gRPC values for the given primary key.
         #
-        # @param [Object, Array<Object>] keys A single, or list of keys to convert.
+        # @param [Object, Array<Object>] key A single, or array of keys to convert.
         # @return [Google::Protobuf::ListValue]
         #
-        def key_list_value keys
-          keys = [keys] unless keys.is_a? Array
-          key_list = keys.map do |k|
+        def key_list_value key
+          key = [key] unless key.is_a? Array
+          key_list = key.map do |k|
             Convert.object_to_grpc_value k
           end
           Google::Protobuf::ListValue.new values: key_list

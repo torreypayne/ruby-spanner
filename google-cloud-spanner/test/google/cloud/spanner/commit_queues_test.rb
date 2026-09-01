@@ -15,11 +15,11 @@
 require "helper"
 
 describe Google::Cloud::Spanner::Commit, :queues, :mock_spanner do
-  it "builds an enqueue mutation correctly" do
+  it "builds an enqueue mutation with scalar key" do
     commit = Google::Cloud::Spanner::Commit.new
     now = Time.now
 
-    commit.enqueue "TestQueue", [2], "Hello, Queues!", deliver_time: now
+    commit.enqueue "TestQueue", 2, "Hello, Queues!", deliver_time: now
 
     assert_equal 1, commit.mutations.count
     mutation = commit.mutations.first
@@ -31,17 +31,39 @@ describe Google::Cloud::Spanner::Commit, :queues, :mock_spanner do
     assert_equal Google::Cloud::Spanner::Convert.time_to_timestamp(now), mutation["send"].deliver_time
   end
 
-  it "builds an ack mutation correctly" do
+  it "builds an enqueue mutation with composite key" do
     commit = Google::Cloud::Spanner::Commit.new
 
-    commit.ack "TestQueue", [2], ignore_not_found: true
+    commit.enqueue "TestQueue", ["tenant1", 2], "Hello, Queues!"
 
     assert_equal 1, commit.mutations.count
     mutation = commit.mutations.first
 
-    assert mutation.ack
-    assert_equal "TestQueue", mutation.ack.queue
-    assert_equal Google::Cloud::Spanner::Convert.object_to_grpc_value([2]).list_value, mutation.ack.key
-    assert_equal true, mutation.ack.ignore_not_found
+    assert mutation["send"]
+    assert_equal "TestQueue", mutation["send"].queue
+    assert_equal Google::Cloud::Spanner::Convert.object_to_grpc_value(["tenant1", 2]).list_value, mutation["send"].key
+    assert_equal Google::Cloud::Spanner::Convert.object_to_grpc_value("Hello, Queues!"), mutation["send"].payload
+    assert_nil mutation["send"].deliver_time
+  end
+
+  it "builds an ack mutation with scalar and composite keys" do
+    commit = Google::Cloud::Spanner::Commit.new
+
+    commit.ack "TestQueue", 2, ignore_not_found: true
+    commit.ack "TestQueue", ["tenant1", 2]
+
+    assert_equal 2, commit.mutations.count
+    m1 = commit.mutations[0]
+    m2 = commit.mutations[1]
+
+    assert m1.ack
+    assert_equal "TestQueue", m1.ack.queue
+    assert_equal Google::Cloud::Spanner::Convert.object_to_grpc_value([2]).list_value, m1.ack.key
+    assert_equal true, m1.ack.ignore_not_found
+
+    assert m2.ack
+    assert_equal "TestQueue", m2.ack.queue
+    assert_equal Google::Cloud::Spanner::Convert.object_to_grpc_value(["tenant1", 2]).list_value, m2.ack.key
+    assert_equal false, m2.ack.ignore_not_found
   end
 end
