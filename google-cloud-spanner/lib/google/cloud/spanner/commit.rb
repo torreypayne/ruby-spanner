@@ -289,9 +289,9 @@ module Google
         # @param [String] queue The name of the queue.
         # @param [Object, Array<Object>] keys A single, or list of keys for the message.
         # @param [Object] payload The message payload.
-        # @param [Time] deliver_at An optional scheduled delivery time.
+        # @param [Time] deliver_time An optional scheduled delivery time.
         #
-        def enqueue queue, keys, payload, deliver_at: nil
+        def enqueue queue, keys, payload, deliver_time: nil
           # NOTE: Currently relying on pre-GA protos (V1::Mutation::Send)
           # which may not exist statically yet in this branch.
           # We map the arguments to the upcoming protobuf structure.
@@ -304,7 +304,7 @@ module Google
             key: key_list_value(keys),
             payload: payload_value
           }
-          send_opts[:deliver_time] = Convert.time_to_timestamp(deliver_at) if deliver_at
+          send_opts[:deliver_time] = Convert.time_to_timestamp(deliver_time) if deliver_time
 
           @mutations += [
             V1::Mutation.new(

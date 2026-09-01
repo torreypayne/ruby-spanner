@@ -27,7 +27,7 @@ describe "Spanner Client Queues", :crud, :spanner do
     db[:gsql].commit do |c|
       c.enqueue "TestQueue", [1], "payload1"
       c.enqueue "TestQueue", [2], "payload2"
-      c.enqueue "TestQueue", [3], "payload3", deliver_at: Time.now
+      c.enqueue "TestQueue", [3], "payload3", deliver_time: Time.now
     end
 
     # Read back from the queue table to verify messages were enqueued

@@ -19,7 +19,7 @@ describe Google::Cloud::Spanner::Commit, :queues, :mock_spanner do
     commit = Google::Cloud::Spanner::Commit.new
     now = Time.now
 
-    commit.enqueue "TestQueue", [2], "Hello, Queues!", deliver_at: now
+    commit.enqueue "TestQueue", [2], "Hello, Queues!", deliver_time: now
 
     assert_equal 1, commit.mutations.count
     mutation = commit.mutations.first
