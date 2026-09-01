@@ -288,15 +288,20 @@ module Google
         #
         # @param [String] queue The name of the queue.
         # @param [Object, Array<Object>] key A single key or array of composite key parts for the message.
-        # @param [Object] payload The message payload.
+        # @param [String, IO, StringIO, Hash, Google::Protobuf::MessageExts] payload
+        #   The message payload. Coerced into {Google::Protobuf::Value} based on type:
+        #   * `IO`, `StringIO`, `File` - Treated as binary data and Base64-encoded into `string_value`.
+        #   * `String` - Plain UTF-8 string value (or Base64-encoded if `ASCII-8BIT` binary).
+        #   * `Hash` - Serialized to JSON string (`to_json`) in `string_value`.
+        #   * `Google::Protobuf::MessageExts` - Serialized to binary proto wire format and Base64-encoded.
         # @param [Time] deliver_time An optional scheduled delivery time.
         #
+        # @raise [ArgumentError] If the payload type is unsupported.
+        #
         def enqueue queue, key, payload, deliver_time: nil
-          # NOTE: Currently relying on pre-GA protos (V1::Mutation::Send)
-          # which may not exist statically yet in this branch.
-          # We map the arguments to the upcoming protobuf structure.
+          # If payload is a binary string (ASCII-8BIT), wrap it in StringIO so Convert treats it as BYTES
+          payload = StringIO.new payload if payload.is_a?(String) && payload.encoding == Encoding::ASCII_8BIT
 
-          # Payload should be correctly wrapped based on the schema, assuming BYTES
           payload_value = Convert.object_to_grpc_value payload
 
           send_opts = {

@@ -1083,8 +1083,15 @@ module Google
         #
         # @param [String] queue The name of the queue.
         # @param [Object, Array<Object>] key A single key or array of composite key parts for the message.
-        # @param [Object] payload The message payload.
+        # @param [String, IO, StringIO, Hash, Google::Protobuf::MessageExts] payload
+        #   The message payload. Coerced into {Google::Protobuf::Value} based on type:
+        #   * `IO`, `StringIO`, `File` - Treated as binary data and Base64-encoded into `string_value`.
+        #   * `String` - Plain UTF-8 string value (or Base64-encoded if `ASCII-8BIT` binary).
+        #   * `Hash` - Serialized to JSON string (`to_json`) in `string_value`.
+        #   * `Google::Protobuf::MessageExts` - Serialized to binary proto wire format and Base64-encoded.
         # @param [Time] deliver_time An optional scheduled delivery time.
+        #
+        # @raise [ArgumentError] If the payload type is unsupported.
         #
         # @example
         #   require "google/cloud/spanner"
