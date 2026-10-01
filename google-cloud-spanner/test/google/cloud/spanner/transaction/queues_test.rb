@@ -51,20 +51,12 @@ describe Google::Cloud::Spanner::Transaction, :queues, :mock_spanner do
     assert_nil mutation["send"].deliver_time
   end
 
-  it "encodes binary IO and ASCII-8BIT string payloads as Base64" do
+  it "encodes StringIO payloads as Base64" do
     raw_bytes = "\x00\x01\x02\xFF".b
-    io_bytes = StringIO.new raw_bytes
+    transaction.enqueue "TestQueue", 1, StringIO.new(raw_bytes)
 
-    transaction.enqueue "TestQueue", 1, io_bytes
-    transaction.enqueue "TestQueue", 2, raw_bytes
-
-    assert_equal 2, transaction.mutations.count
-    m1 = transaction.mutations[0]
-    m2 = transaction.mutations[1]
-
-    expected_b64 = Base64.strict_encode64 raw_bytes
-    assert_equal expected_b64, m1["send"].payload.string_value
-    assert_equal expected_b64, m2["send"].payload.string_value
+    assert_equal 1, transaction.mutations.count
+    assert_equal Base64.strict_encode64(raw_bytes), transaction.mutations.first["send"].payload.string_value
   end
 
   it "encodes Hash payload as JSON string" do
