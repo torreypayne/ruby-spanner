@@ -280,6 +280,66 @@ module Google
           keys
         end
 
+        ##
+        # Sends a message to a queue.
+        #
+        # All changes are accumulated in memory until the block passed to
+        # {Client#commit} completes.
+        #
+        # @param [String] queue The name of the queue.
+        # @param [Object, Array<Object>] key A single key or array of composite key parts for the message.
+        # @param [String, IO, StringIO, Hash, Google::Protobuf::MessageExts] payload
+        #   The message payload. It is converted the same way as column values
+        #   (see {#upsert}):
+        #   * `String` - Sent as text.
+        #   * `IO`, `StringIO`, `File` - Sent as bytes (Base64-encoded). Ruby has
+        #     no bytes type, so wrap binary data in a `StringIO`.
+        #   * `Hash` - Serialized to a JSON string.
+        #   * `Google::Protobuf::MessageExts` - Serialized and Base64-encoded.
+        # @param [Time] deliver_time An optional scheduled delivery time.
+        #
+        # @raise [ArgumentError] If the payload type is unsupported.
+        #
+        def enqueue queue, key, payload, deliver_time: nil
+          payload_value = Convert.object_to_grpc_value payload
+
+          send_opts = {
+            queue: queue,
+            key: key_list_value(key),
+            payload: payload_value
+          }
+          send_opts[:deliver_time] = Convert.time_to_timestamp(deliver_time) if deliver_time
+
+          @mutations += [
+            V1::Mutation.new(
+              send: V1::Mutation::Send.new(send_opts)
+            )
+          ]
+        end
+
+        ##
+        # Acknowledges a message in a queue.
+        #
+        # All changes are accumulated in memory until the block passed to
+        # {Client#commit} completes.
+        #
+        # @param [String] queue The name of the queue.
+        # @param [Object, Array<Object>] key A single key or array of composite key parts to match.
+        # @param [Boolean] ignore_not_found If true, does not fail if message does not exist.
+        #
+        def ack queue, key, ignore_not_found: false
+          @mutations += [
+            V1::Mutation.new(
+              ack: V1::Mutation::Ack.new(
+                queue: queue,
+                key: key_list_value(key),
+                ignore_not_found: ignore_not_found
+              )
+            )
+          ]
+          key
+        end
+
         # Return the current mutations added to this `Spanner::Commit` object.
         # @private
         # @return [Array<Google::Cloud::Spanner::V1::Mutation>]
@@ -323,6 +383,21 @@ module Google
             )
           end
           rows
+        end
+
+        ##
+        # @private
+        # Generates a `ListValue` protobuf containing gRPC values for the given primary key.
+        #
+        # @param [Object, Array<Object>] key A single, or array of keys to convert.
+        # @return [Google::Protobuf::ListValue]
+        #
+        def key_list_value key
+          key = [key] unless key.is_a? Array
+          key_list = key.map do |k|
+            Convert.object_to_grpc_value k
+          end
+          Google::Protobuf::ListValue.new values: key_list
         end
 
         def key_set keys

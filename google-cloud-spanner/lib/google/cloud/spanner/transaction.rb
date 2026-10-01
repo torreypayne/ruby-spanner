@@ -1076,6 +1076,66 @@ module Google
         end
 
         ##
+        # Sends a message to a queue.
+        #
+        # All changes are accumulated in memory until the block passed to
+        # {Client#transaction} completes.
+        #
+        # @param [String] queue The name of the queue.
+        # @param [Object, Array<Object>] key A single key or array of composite key parts for the message.
+        # @param [String, IO, StringIO, Hash, Google::Protobuf::MessageExts] payload
+        #   The message payload. It is converted the same way as column values
+        #   (see {#upsert}):
+        #   * `String` - Sent as text.
+        #   * `IO`, `StringIO`, `File` - Sent as bytes (Base64-encoded). Ruby has
+        #     no bytes type, so wrap binary data in a `StringIO`.
+        #   * `Hash` - Serialized to a JSON string.
+        #   * `Google::Protobuf::MessageExts` - Serialized and Base64-encoded.
+        # @param [Time] deliver_time An optional scheduled delivery time.
+        #
+        # @raise [ArgumentError] If the payload type is unsupported.
+        #
+        # @example
+        #   require "google/cloud/spanner"
+        #
+        #   spanner = Google::Cloud::Spanner.new
+        #   db = spanner.client "my-instance", "my-database"
+        #
+        #   db.transaction do |tx|
+        #     tx.enqueue "TestQueue", 42, "Hello, Queues!"
+        #   end
+        #
+        def enqueue queue, key, payload, deliver_time: nil
+          ensure_session!
+          @commit.enqueue queue, key, payload, deliver_time: deliver_time
+        end
+
+        ##
+        # Acknowledges a message in a queue.
+        #
+        # All changes are accumulated in memory until the block passed to
+        # {Client#transaction} completes.
+        #
+        # @param [String] queue The name of the queue.
+        # @param [Object, Array<Object>] key A single key or array of composite key parts to match.
+        # @param [Boolean] ignore_not_found If true, does not fail if message does not exist.
+        #
+        # @example
+        #   require "google/cloud/spanner"
+        #
+        #   spanner = Google::Cloud::Spanner.new
+        #   db = spanner.client "my-instance", "my-database"
+        #
+        #   db.transaction do |tx|
+        #     tx.ack "TestQueue", 42
+        #   end
+        #
+        def ack queue, key, ignore_not_found: false
+          ensure_session!
+          @commit.ack queue, key, ignore_not_found: ignore_not_found
+        end
+
+        ##
         # @private
         # Returns the field names and types for a table.
         #
